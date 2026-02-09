@@ -353,6 +353,52 @@ def request_termux_permissions():
 
     print("    -> Hướng dẫn thủ công: Settings > Apps > Termux:API > Permissions > Location > Allow All the time.")
 
+APP_PACKAGES = {
+    "facebook": "com.facebook.katana",
+    "messenger": "com.facebook.orca",
+    "youtube": "com.google.android.youtube",
+    "tiktok": "com.ss.android.ugc.trill",
+    "zalo": "com.zing.zalo",
+    "chrome": "com.android.chrome",
+    "gmail": "com.google.android.gm",
+    "maps": "com.google.android.apps.maps",
+    "settings": "com.android.settings",
+    "camera": "com.sec.android.app.camera", # Samsung
+    "spotify": "com.spotify.music",
+    "termux": "com.termux",
+    "bravigo": "com.bravigo.dvr.vietmap", # Ví dụ đoán tên package, user có thể cần cung cấp chính xác
+}
+
+def launch_app(app_name: str) -> dict:
+    """
+    Mở ứng dụng trên thiết bị Android (Termux).
+    Sử dụng tên ứng dụng phổ biến (facebook, youtube...) hoặc tên gói (package name).
+    Ví dụ: 'mở app facebook', 'launch youtube', 'com.zing.zalo'
+    """
+    if not is_termux():
+        return {"error": "Tính năng mở App chỉ hỗ trợ trên Android Termux."}
+
+    app_name_lower = app_name.lower().strip()
+    package_name = APP_PACKAGES.get(app_name_lower, app_name_lower)
+    
+    print(f"[*] System: Đang thử mở ứng dụng: {app_name} ({package_name})...")
+    
+    try:
+        # Cách 1: Dùng lệnh monkey (Hack để launch app không cần root)
+        # monkey -p <package> 1: Giả lập 1 thao tác user vào app -> App sẽ mở lên
+        cmd = f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1"
+        
+        # Suppress output ồn ào của monkey
+        subprocess.run(cmd, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return {"status": "success", "message": f"Đã gửi lệnh mở App {app_name} ({package_name})."}
+        
+    except subprocess.CalledProcessError:
+        # Cách 2: Nếu monkey thất bại (do sai package name), thử termux-open với scheme
+        # Ví dụ: fb:// cho facebook (nhưng không phải app nào cũng có scheme chuẩn)
+        return {"error": f"Không thể mở app '{app_name}'. Có thể sai tên gói (Package Name) hoặc app chưa cài đặt.\n    Gợi ý: Hãy nhập đúng Package Name (ví dụ: com.facebook.katana)."}
+    except Exception as e:
+        return {"error": f"Lỗi không xác định khi mở app: {str(e)}"}
+
 def scan_wifi_networks():
     """
     Quét các mạng WiFi xung quanh và đánh giá độ an toàn (Audit).
@@ -364,9 +410,11 @@ def scan_wifi_networks():
     # Hỗ trợ Android Termux
     if is_termux():
         print("[*] Phát hiện môi trường Termux. Đang thử dùng 'termux-wifi-scaninfo'...")
+        print("    [TIP] Hãy chắc chắn bạn đã BẬT VỊ TRÍ (GPS) và cấp quyền Location cho Termux:API.")
+        
         try:
-            # Thêm timeout 15s để tránh treo
-            result = subprocess.run(['termux-wifi-scaninfo'], capture_output=True, text=True, timeout=15)
+            # Giảm timeout xuống 8s để đỡ phải chờ lâu nếu treo
+            result = subprocess.run(['termux-wifi-scaninfo'], capture_output=True, text=True, timeout=8)
             if result.returncode == 0:
                 wifi_info = json.loads(result.stdout)
                 # termux-wifi-scaninfo trả về list các dict
@@ -491,5 +539,123 @@ def open_url_in_browser(url: str) -> dict:
     except Exception as e:
         return {"error": f"Lỗi khi mở trình duyệt: {str(e)}"}
 
+from tools.desktop_tools import capture_screen, get_active_window_info, control_mouse, type_text, scroll_screen, press_key, setup_adb_termux
+from tools.vision_tools import analyze_screen, read_screen_text
+from agent.memory import learn_new_rule, get_learned_rules
+
+def start_watch_mode(interval=5, max_loops=10):
+    """
+    Bật chế độ 'Quan sát & Tự học' (Watch Mode).
+    AI sẽ liên tục chụp màn hình mỗi N giây, phân tích thay đổi và ghi nhớ hành vi.
+    Giả lập khả năng 'nhìn trực tiếp'.
+    
+    Args:
+        interval: Thời gian nghỉ giữa các lần chụp (giây).
+        max_loops: Số lần lặp tối đa (để tránh chạy vô hạn tốn API).
+    """
+    print(f"\n[*] KÍCH HOẠT CHẾ ĐỘ QUAN SÁT (WATCH MODE) - Interval: {interval}s")
+    
+    if is_termux():
+        print("[Note] Trên Termux, hãy đảm bảo đã kết nối ADB (chạy tool setup_adb_termux trước).")
+    
+    import time
+    from PIL import Image
+    import imagehash # Cần cài thêm nếu muốn so sánh ảnh thông minh, ở đây dùng size đơn giản
+    
+    last_analysis = ""
+    
+    for i in range(max_loops):
+        print(f"\n--- WATCH LOOP {i+1}/{max_loops} ---")
+        
+        # 1. Chụp màn hình
+        result = capture_screen()
+        if result.get("status") != "success":
+            print(f"[!] Lỗi chụp: {result.get('message')}")
+            if "Android" in result.get('message', ''):
+                print("    -> Gợi ý: Hãy chạy lệnh 'setup_adb_termux' để kết nối ADB.")
+                break
+            time.sleep(interval)
+            continue
+            
+        # 2. Phân tích (Chỉ gửi AI nếu cần thiết, ở đây demo gửi luôn)
+        # Để tiết kiệm, thực tế nên so sánh hash ảnh trước.
+        
+        print("[*] Đang phân tích màn hình...")
+        # Gọi hàm analyze_screen từ vision_tools nhưng xử lý output gọn hơn
+        analysis = analyze_screen("Bạn đang thấy gì trên màn hình? Nếu có hành động người dùng (như mở app, gõ phím), hãy ghi chú lại.")
+        
+        print(f"AI Observation: {analysis}")
+        
+        # 3. Tự học (Giả lập logic)
+        if "facebook" in analysis.lower():
+            learn_new_rule("Người dùng thường mở Facebook. Gợi ý: Kiểm tra tin nhắn.")
+            print("[+] Learned: Đã ghi nhớ thói quen mở Facebook.")
+        
+        time.sleep(interval)
+
+    return "Đã kết thúc phiên Quan sát."
+
+def launch_app(app_name: str) -> dict:
+    """
+    Mở một ứng dụng trên máy tính hoặc điện thoại.
+    Args:
+        app_name: Tên ứng dụng (vd: 'notepad', 'calc', 'facebook', 'youtube') hoặc Package Name (com.facebook.katana).
+    """
+    print(f"[*] System: Đang khởi chạy ứng dụng: {app_name}...")
+    
+    if is_termux():
+        # Android Termux Logic
+        # 1. Thử dùng monkey để mở package (cần tên gói chính xác)
+        try:
+            # Mapping tên thông dụng sang package name
+            package_map = {
+                "facebook": "com.facebook.katana",
+                "youtube": "com.google.android.youtube",
+                "chrome": "com.android.chrome",
+                "zalo": "com.zing.zalo",
+                "tiktok": "com.ss.android.ugc.trill",
+                "maps": "com.google.android.apps.maps",
+                "gmail": "com.google.android.gm",
+                "settings": "com.android.settings"
+            }
+            pkg = package_map.get(app_name.lower(), app_name)
+            
+            # Lệnh monkey giúp start app mà không cần root (đôi khi hoạt động)
+            cmd = f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1"
+            subprocess.run(cmd.split(), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return {"status": "success", "message": f"Đã gửi lệnh mở {pkg} trên Android."}
+        except Exception as e:
+            return {"error": f"Lỗi mở app trên Android: {str(e)}"}
+    else:
+        # Windows Logic
+        try:
+            # Mapping tên thông dụng
+            app_map = {
+                "notepad": "notepad.exe",
+                "calc": "calc.exe",
+                "explorer": "explorer.exe",
+                "cmd": "start cmd.exe",
+                "chrome": "start chrome",
+                "edge": "start msedge"
+            }
+            cmd = app_map.get(app_name.lower(), app_name)
+            
+            os.system(cmd)
+            return {"status": "success", "message": f"Đã mở {app_name} trên Windows."}
+        except Exception as e:
+            return {"error": f"Lỗi mở app trên Windows: {str(e)}"}
+
 # Danh sách các hàm có thể được gọi bởi AI
-tools_list = [scan_target, check_http_security_headers, get_my_ip, scan_local_network, scan_for_cameras, analyze_website_health, scan_wifi_networks, run_system_command, open_url_in_browser]
+tools_list = [
+    scan_target, check_http_security_headers, get_my_ip, 
+    scan_local_network, scan_for_cameras, analyze_website_health, 
+    scan_wifi_networks, run_system_command, open_url_in_browser, launch_app,
+    # Desktop Automation
+    capture_screen, get_active_window_info, control_mouse, type_text, scroll_screen, press_key,
+    # Vision
+    analyze_screen, read_screen_text,
+    # Memory / Learning
+    learn_new_rule, get_learned_rules,
+    # New Tools
+    setup_adb_termux, start_watch_mode
+]

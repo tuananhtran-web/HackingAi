@@ -30,6 +30,15 @@ class SecurityAgent:
             3. KHI NGƯỜI DÙNG YÊU CẦU "QUÉT MẠNG", "TÌM THIẾT BỊ", "TÌM CAMERA": Hãy sử dụng ngay các tool này. Đừng từ chối vì lý do "chỉ quét được 1 mục tiêu". Tool đã được thiết kế để xử lý việc đó.
             4. TỰ DO SÁNG TẠO: Nếu không có tool cụ thể cho yêu cầu, hãy sử dụng `run_system_command` để chạy các lệnh Windows CMD (như ping, tracert, nslookup, arp, ipconfig...). Hãy tự suy luận lệnh phù hợp nhất để lấy thông tin.
             5. ĐIỀU KHIỂN HỆ THỐNG: Nếu người dùng yêu cầu "mở web", "tìm đường", "xem bản đồ" -> Hãy dùng `open_url_in_browser`. Ví dụ: "Tìm đường đến X" -> Mở Google Maps với query X.
+            6. KHẢ NĂNG NHÌN VÀ ĐIỀU KHIỂN (DESKTOP AUTOMATION):
+               - Bạn có thể NHÌN màn hình bằng `analyze_screen` (hoặc `capture_screen`).
+               - Bạn có thể ĐIỀU KHIỂN chuột/phím bằng `control_mouse`, `type_text`, `launch_app`.
+               - Nếu người dùng bảo "Theo dõi màn hình", "Làm giúp tôi việc này", hãy dùng các tool này.
+            
+            7. KHẢ NĂNG TỰ HỌC (SELF-LEARNING):
+               - Bạn có thể GHI NHỚ quy tắc mới bằng `learn_new_rule`.
+               - Hãy luôn kiểm tra `get_learned_rules` (nếu cần) để biết thói quen người dùng.
+               - Mục tiêu: Tự động hóa các tác vụ lặp lại dựa trên hành vi người dùng.
             
             NGUYÊN TẮC:
             1. Được phép thu thập thông tin (Passive Recon) trên mạng LAN và WiFi xung quanh.

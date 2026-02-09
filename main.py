@@ -13,6 +13,7 @@ from tools.network_tools import (
 )
 # Import module giả lập
 from tools.attack_simulation import simulate_deauth_attack, simulate_fake_ap, simulate_wifi_crack
+from tools.network_tools import launch_app, start_watch_mode, setup_adb_termux
 
 def run_offline_mode():
     """
@@ -35,13 +36,17 @@ def run_offline_mode():
         print("3. Quét mạng WiFi (Audit & Security Check)")
         print("4. Xem thông tin IP của tôi (My IP Info)")
         print("5. Kiểm tra gói hỗ trợ Termux (Check Dependencies)")
+        print("6. Mở ứng dụng (Launch App)")
+        print("7. [BETA] Setup ADB (No-Root Screen Capture)")
+        print("8. [BETA] Chế độ Quan sát (Watch Mode)")
+        
         print("\n--- DEMO / SIMULATION (CHẾ ĐỘ GIẢ LẬP) ---")
-        print("6. Giả lập tấn công Deauth (Simulate Deauth)")
-        print("7. Giả lập Fake AP (Simulate Fake AP)")
-        print("8. Giả lập Crack WiFi (Simulate WPA Crack)")
+        print("9. Giả lập tấn công Deauth (Simulate Deauth)")
+        print("10. Giả lập Fake AP (Simulate Fake AP)")
+        print("11. Giả lập Crack WiFi (Simulate WPA Crack)")
         print("0. Thoát (Exit)")
         
-        choice = input("\n[Offline] Chọn chức năng (0-8): ").strip()
+        choice = input("\n[Offline] Chọn chức năng (0-11): ").strip()
         
         if choice == '1':
             print("\n[*] Đang quét mạng LAN...")
@@ -64,10 +69,17 @@ def run_offline_mode():
         elif choice == '5':
             check_and_install_termux_dependencies()
         elif choice == '6':
-            simulate_deauth_attack()
+            app_name = input("Nhập tên App hoặc Package Name (vd: facebook, youtube): ")
+            print(launch_app(app_name))
         elif choice == '7':
-            simulate_fake_ap()
+            print(setup_adb_termux())
         elif choice == '8':
+            start_watch_mode()
+        elif choice == '9':
+            simulate_deauth_attack()
+        elif choice == '10':
+            simulate_fake_ap()
+        elif choice == '11':
             simulate_wifi_crack()
         elif choice == '0':
             print("Tạm biệt!")
