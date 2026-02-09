@@ -26,7 +26,9 @@ def analyze_screen(prompt="Mô tả chi tiết những gì bạn thấy trên m�
         
         # 2. Upload và phân tích (Dùng model Vision)
         # Lưu ý: Chúng ta dùng model Flash vì nó nhanh và hỗ trợ Multimodal
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        # Cập nhật model name chính xác từ danh sách hỗ trợ (gemini-2.5-flash)
+        model_name = getattr(config, 'MODEL_NAME', 'gemini-2.5-flash')
+        model = genai.GenerativeModel(model_name)
         
         img = Image.open(filepath)
         
